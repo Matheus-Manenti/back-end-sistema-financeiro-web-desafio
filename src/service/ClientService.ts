@@ -1,25 +1,39 @@
-
-import { ClientRequestDTO } from 'src/dtos/client/ClientRequestDTO';
-import { UpdateClientRequestDTO } from 'src/dtos/client/UpdateClientRequestDTO';
-import { ClientNotFoundException } from 'src/exceptions/client-not-found.exception';
-import { ClientConflictException } from 'src/exceptions/client-conflict.exception';
-import { ClientResponseDTO } from 'src/dtos/client/ClientResponse';
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'prisma/PrismaService';
+import { ClientResponseDTO } from 'src/dtos/client/ClientResponse';
+import { ClientRequestDTO } from 'src/dtos/client/ClientRequestDTO';
+import { FinancialStatus } from 'src/dtos/client/FinancialStatus';
+import { UpdateClientRequestDTO } from 'src/dtos/client/UpdateClientRequestDTO';
+import { ClientConflictException } from 'src/exceptions/client-conflict.exception';
+import { ClientNotFoundException } from 'src/exceptions/client-not-found.exception';
 
 @Injectable()
 export class ClientService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private readonly clientSelect = {
-    id: true,
-    name: true,
-    email: true,
-    phone: true,
-    isActive: true,
-    createdAt: true,
-    updatedAt: true,
+  private readonly clientInclude = {
+    orders: true,
   };
+
+  private _calculateFinancialStatus(
+    client: Prisma.ClientGetPayload<{ include: { orders: true } }>,
+  ): FinancialStatus {
+    const now = new Date();
+    const hasUnpaidActiveOrder = client.orders.some(
+      (order) => !order.isPaid && order.endDate > now,
+    );
+    return hasUnpaidActiveOrder
+      ? FinancialStatus.INADIMPLENTE
+      : FinancialStatus.ADIMPLENTE;
+  }
+
+  private _mapToClientResponseDTO(
+    client: Prisma.ClientGetPayload<{ include: { orders: true } }>,
+  ): ClientResponseDTO {
+    const financialStatus = this._calculateFinancialStatus(client);
+    return new ClientResponseDTO({ ...client, financialStatus });
+  }
 
   async create(data: ClientRequestDTO): Promise<ClientResponseDTO> {
     if (data.email) {
@@ -37,42 +51,50 @@ export class ClientService {
         email: data.email,
         phone: data.phone,
       },
+      include: this.clientInclude, 
     });
 
-    return new ClientResponseDTO(client);
+    return this._mapToClientResponseDTO(client);
   }
 
   async findAll(): Promise<ClientResponseDTO[]> {
     const clients = await this.prisma.client.findMany({
-      select: this.clientSelect,
+      include: this.clientInclude,
+      orderBy: {
+        isActive: 'desc',
+      },
     });
-    return clients.map(client => new ClientResponseDTO(client));
+    return clients.map((client) => this._mapToClientResponseDTO(client));
   }
 
   async findById(id: string): Promise<ClientResponseDTO> {
     const client = await this.prisma.client.findUnique({
       where: { id },
-      select: this.clientSelect,
+      include: this.clientInclude,
     });
     if (!client) {
       throw new ClientNotFoundException();
     }
-    return new ClientResponseDTO(client);
+    return this._mapToClientResponseDTO(client);
   }
 
   async findByEmail(email: string): Promise<ClientResponseDTO> {
     const client = await this.prisma.client.findUnique({
       where: { email },
-      select: this.clientSelect,
+      include: this.clientInclude,
     });
     if (!client) {
       throw new ClientNotFoundException();
     }
-    return new ClientResponseDTO(client);
+    return this._mapToClientResponseDTO(client);
   }
 
-  async update(id: string, data: UpdateClientRequestDTO): Promise<ClientResponseDTO> {
-    await this.findById(id); 
+  async update(
+    id: string,
+    data: UpdateClientRequestDTO,
+  ): Promise<ClientResponseDTO> {
+
+    await this.findById(id);
 
     if (data.email) {
       const ownerOfEmail = await this.prisma.client.findUnique({
@@ -86,21 +108,31 @@ export class ClientService {
     const updatedClient = await this.prisma.client.update({
       where: { id },
       data: data,
-      select: this.clientSelect,
+      include: this.clientInclude,
     });
 
-    return new ClientResponseDTO(updatedClient);
+    return this._mapToClientResponseDTO(updatedClient);
   }
 
   async toggleStatus(id: string): Promise<ClientResponseDTO> {
-    const client = await this.findById(id);
+    const client = await this.prisma.client.findUnique({
+      where: { id },
+      include: this.clientInclude,
+    });
+
+    if (!client) {
+      throw new ClientNotFoundException();
+    }
 
     const updatedClient = await this.prisma.client.update({
       where: { id },
-      data: { isActive: !client.isActive },
-      select: this.clientSelect,
+      data: {
+        isActive: !client.isActive,
+        canceledAt: !client.isActive ? new Date() : null,
+      },
+      include: this.clientInclude,
     });
 
-    return new ClientResponseDTO(updatedClient);
+    return this._mapToClientResponseDTO(updatedClient);
   }
 }

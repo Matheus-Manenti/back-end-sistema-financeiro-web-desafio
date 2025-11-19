@@ -38,17 +38,20 @@ model Client {
 }
 
 model Order {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   description String
-  value       Decimal
+  value       Float
   startDate   DateTime
   endDate     DateTime
-  isPaid      Boolean  @default(false)
-  paymentDate DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  client      Client   @relation(fields: [clientId], references: [id])
-  clientId    String
+  isPaid      Boolean   @default(false)
+  paidAt      DateTime?
+  isActive    Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
 
   @@map("orders")
 }
@@ -57,9 +60,4 @@ enum Role {
   SUPER_ADMIN
   ADMIN
   USER
-}
-
-enum ClientStatus {
-  ATIVO
-  CANCELADO
 }

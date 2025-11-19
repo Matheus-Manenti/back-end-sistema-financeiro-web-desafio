@@ -11,6 +11,9 @@ async function bootstrap() {
   // Habilita o CORS para permitir requisições de outros domínios
   app.enableCors();
 
+  // Define um prefixo global para todas as rotas
+  app.setGlobalPrefix('api');
+
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();

@@ -1,3 +1,5 @@
+import { FinancialStatus } from './FinancialStatus';
+
 export class ClientResponseDTO {
   id: string;
   name: string;
@@ -6,6 +8,7 @@ export class ClientResponseDTO {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  financialStatus: FinancialStatus;
 
   constructor(partial: Partial<ClientResponseDTO>) {
     Object.assign(this, partial);

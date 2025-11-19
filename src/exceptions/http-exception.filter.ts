@@ -9,10 +9,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const status = exception.getStatus();
     const err = exception.getResponse() as
       | { message: any; statusCode: number; error: string }
-      | { error: string; statusCode: 400; message: string[] }; // class-validator
+      | { error: string; statusCode: 400; message: string[] }; 
 
     if (typeof err !== 'string' && err.statusCode === 400) {
-      // class-validator
+     
       return response.status(status).json({
         statusCode: status,
         message: err.message,
