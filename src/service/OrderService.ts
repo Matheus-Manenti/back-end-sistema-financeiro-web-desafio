@@ -10,6 +10,9 @@ import { ClientService } from './ClientService';
 
 @Injectable()
 export class OrderService {
+  findByClientId(clientId: string): OrderResponseDTO[] | PromiseLike<OrderResponseDTO[]> {
+    throw new Error('Method not implemented.');
+  }
   constructor(
     private readonly prisma: PrismaService,
     private readonly clientService: ClientService,
@@ -46,6 +49,9 @@ export class OrderService {
       },
     });
 
+    // Atualiza o status financeiro do cliente
+    await this._updateClientFinancialStatus(data.clientId);
+
     return this._mapToOrderResponseDTO(order);
   }
 
@@ -55,22 +61,6 @@ export class OrderService {
         isActive: 'desc',
       },
     });
-    return orders.map((order) => this._mapToOrderResponseDTO(order));
-  }
-
-  async findByClientId(clientId: string): Promise<OrderResponseDTO[]> {
-
-    await this.clientService.findById(clientId);
-
-    const orders = await this.prisma.order.findMany({
-      where: {
-        clientId: clientId,
-      },
-      orderBy: {
-        isActive: 'desc',
-      },
-    });
-
     return orders.map((order) => this._mapToOrderResponseDTO(order));
   }
 
@@ -105,6 +95,8 @@ export class OrderService {
       },
     });
 
+    // Atualiza o status financeiro do cliente após o pagamento
+    await this._updateClientFinancialStatus(updatedOrder.clientId);
     return this._mapToOrderResponseDTO(updatedOrder);
   }
 
@@ -122,6 +114,8 @@ export class OrderService {
       },
     });
 
+    // Atualiza o status financeiro do cliente
+    await this._updateClientFinancialStatus(updatedOrder.clientId);
     return this._mapToOrderResponseDTO(updatedOrder);
   }
 
@@ -139,6 +133,35 @@ export class OrderService {
       data: { isActive: !order.isActive },
     });
 
+    // Atualiza o status financeiro do cliente
+    await this._updateClientFinancialStatus(updatedOrder.clientId);
     return this._mapToOrderResponseDTO(updatedOrder);
+  }
+
+  // Função auxiliar para atualizar o campo financialStatus do cliente no banco
+  private async _updateClientFinancialStatus(clientId: string) {
+    const client = await this.prisma.client.findUnique({
+      where: { id: clientId },
+      include: { orders: true },
+    });
+    if (!client) return;
+    // Lógica igual ao ClientService
+    const now = new Date();
+    const hasVencidaOrder = client.orders.some(order => {
+      let validityStatus;
+      if (now < order.startDate) {
+        validityStatus = 'FUTURA';
+      } else if (now > order.endDate && !order.isPaid) {
+        validityStatus = 'VENCIDA';
+      } else {
+        validityStatus = 'VIGENTE';
+      }
+      return validityStatus === 'VENCIDA';
+    });
+    const financialStatus = hasVencidaOrder ? 'INADIMPLENTE' : 'ADIMPLENTE';
+    await this.prisma.client.update({
+      where: { id: clientId },
+      data: { financialStatus },
+    });
   }
 }

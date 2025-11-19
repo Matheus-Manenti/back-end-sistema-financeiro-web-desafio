@@ -20,10 +20,18 @@ export class ClientService {
     client: Prisma.ClientGetPayload<{ include: { orders: true } }>,
   ): FinancialStatus {
     const now = new Date();
-    const hasUnpaidActiveOrder = client.orders.some(
-      (order) => !order.isPaid && order.endDate > now,
-    );
-    return hasUnpaidActiveOrder
+    const hasVencidaOrder = client.orders.some(order => {
+      let validityStatus;
+      if (now < order.startDate) {
+        validityStatus = 'FUTURA';
+      } else if (now > order.endDate && !order.isPaid) {
+        validityStatus = 'VENCIDA';
+      } else {
+        validityStatus = 'VIGENTE';
+      }
+      return validityStatus === 'VENCIDA';
+    });
+    return hasVencidaOrder
       ? FinancialStatus.INADIMPLENTE
       : FinancialStatus.ADIMPLENTE;
   }

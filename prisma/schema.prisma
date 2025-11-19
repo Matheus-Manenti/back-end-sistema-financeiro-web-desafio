@@ -28,6 +28,7 @@ model Client {
   name       String
   email      String?  @unique
   phone      String?
+  financialStatus FinancialStatus @default(ADIMPLENTE)
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -60,4 +61,9 @@ enum Role {
   SUPER_ADMIN
   ADMIN
   USER
+}
+
+enum FinancialStatus {
+  ADIMPLENTE
+  INADIMPLENTE
 }
