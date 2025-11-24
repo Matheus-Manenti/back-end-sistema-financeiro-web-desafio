@@ -1,16 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { hash } from 'bcrypt';
 import { UsuarioRequestDTO } from '../dtos/user/UserRequestDTO';
 import { UserResponseDTO } from '../dtos/user/UserResponseDTO';
-import { PrismaService } from 'prisma/PrismaService';
 import { UpdateUserRequestDTO } from 'src/dtos/user/UpdateUserRequestDTO';
 import { UserNotFoundException } from 'src/exceptions/user-not-found.exception';
 import { UserConflictException } from 'src/exceptions/user-conflict.exception';
 import { Role } from '@prisma/client';
+import type { IUserRepository } from 'src/repositories/IUserRepository';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject('IUserRepository') private readonly usersRepo: IUserRepository) {}
 
   private readonly userSelect = {
     id: true,
@@ -24,9 +24,7 @@ export class UsersService {
 
   async createUser(data: UsuarioRequestDTO): Promise<UserResponseDTO> {
 
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: data.email },
-    });
+    const existingUser = await this.usersRepo.findByEmail(data.email);
 
     if (existingUser) {
       throw new UserConflictException();
@@ -35,14 +33,12 @@ export class UsersService {
     const saltRounds = 10;
     const passwordHash = await hash(data.password, saltRounds);
 
-    const newUser = await this.prisma.user.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        passwordHash,
-        role: data.role.toUpperCase() as Role, 
-      },
-    });
+    const newUser = await this.usersRepo.create({
+      name: data.name,
+      email: data.email,
+      passwordHash,
+      role: data.role.toUpperCase() as Role,
+    } as any);
 
     const response = new UserResponseDTO({
       id: newUser.id,
@@ -58,38 +54,30 @@ export class UsersService {
   }
 
   async findAll(): Promise<UserResponseDTO[]> {
-    const users = await this.prisma.user.findMany({
-      select: this.userSelect,
-    });
-    return users.map(user => new UserResponseDTO(user));
+    const users = await this.usersRepo.findAll(this.userSelect);
+    return users.map(user => new UserResponseDTO(user as any));
   }
 
   async findById(id: string): Promise<UserResponseDTO> {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      select: this.userSelect,
-    });
+    const user = await this.usersRepo.findById(id);
     if (!user) {
       throw new UserNotFoundException();
     }
-    return new UserResponseDTO(user);
+    const selected = (({ id, name, email, role, isActive, createdAt, updatedAt }) => ({ id, name, email, role, isActive, createdAt, updatedAt }))(user as any);
+    return new UserResponseDTO(selected as any);
   }
 
   async findByEmail(email: string): Promise<UserResponseDTO> {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-      select: this.userSelect,
-    });
+    const user = await this.usersRepo.findByEmail(email);
     if (!user) {
       throw new UserNotFoundException();
     }
-    return new UserResponseDTO(user);
+    const selected = (({ id, name, email, role, isActive, createdAt, updatedAt }) => ({ id, name, email, role, isActive, createdAt, updatedAt }))(user as any);
+    return new UserResponseDTO(selected as any);
   }
 
   async findUserByEmailForAuth(email: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await this.usersRepo.findByEmail(email);
     if (!user) {
       throw new UserNotFoundException();
     }
@@ -103,9 +91,7 @@ export class UsersService {
     await this.findById(id); 
 
     if (data.email) {
-      const ownerOfEmail = await this.prisma.user.findUnique({
-        where: { email: data.email },
-      });
+      const ownerOfEmail = await this.usersRepo.findByEmail(data.email);
 
       if (ownerOfEmail && ownerOfEmail.id !== id) {
         throw new UserConflictException();
@@ -125,25 +111,15 @@ export class UsersService {
 
     delete updateData.password; 
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id },
-      data: updateData,
-      select: this.userSelect,
-    });
-
-    return new UserResponseDTO(updatedUser);
+    const updatedUser = await this.usersRepo.update(id, updateData, this.userSelect);
+    return new UserResponseDTO(updatedUser as any);
   }
 
   async toggleStatus(id: string): Promise<UserResponseDTO> {
 
     const user = await this.findById(id);
     
-    const updatedUser = await this.prisma.user.update({
-      where: { id },
-      data: { isActive: !user.isActive },
-      select: this.userSelect,
-    });
-
-    return new UserResponseDTO(updatedUser);
+    const updatedUser = await this.usersRepo.update(id, { isActive: !user.isActive }, this.userSelect);
+    return new UserResponseDTO(updatedUser as any);
   }
 }

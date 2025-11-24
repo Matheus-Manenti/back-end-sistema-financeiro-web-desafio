@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from 'prisma/PrismaService';
+import type { IClientRepository } from 'src/repositories/IClientRepository';
 import { ClientResponseDTO } from 'src/dtos/client/ClientResponse';
 import { ClientRequestDTO } from 'src/dtos/client/ClientRequestDTO';
 import { FinancialStatus } from 'src/dtos/client/FinancialStatus';
@@ -10,18 +10,14 @@ import { ClientNotFoundException } from 'src/exceptions/client-not-found.excepti
 
 @Injectable()
 export class ClientService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject('IClientRepository') private readonly clientRepo: IClientRepository) {}
 
   private readonly clientInclude = {
     orders: true,
   };
 
   async updateFinancialStatus(id: string, financialStatus: FinancialStatus): Promise<ClientResponseDTO> {
-    const updatedClient = await this.prisma.client.update({
-      where: { id: id },
-      data: { financialStatus: financialStatus },
-      include: this.clientInclude,
-    });
+    const updatedClient = await this.clientRepo.update(id, { financialStatus }, this.clientInclude);
     return this._mapToClientResponseDTO(updatedClient);
   }
 
@@ -56,42 +52,31 @@ export class ClientService {
 
   async create(data: ClientRequestDTO): Promise<ClientResponseDTO> {
     if (data.email) {
-      const existingClient = await this.prisma.client.findUnique({
-        where: { email: data.email },
-      });
+      const existingClient = await this.clientRepo.findByEmail(data.email);
       if (existingClient) {
         throw new ClientConflictException();
       }
     }
 
-    const client = await this.prisma.client.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-      },
-      include: this.clientInclude, 
-    });
+    const client = await this.clientRepo.create({
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+    } as any);
 
     return this._mapToClientResponseDTO(client);
   }
 
   async findAll(): Promise<ClientResponseDTO[]> {
-    const clients = await this.prisma.client.findMany({
-      include: this.clientInclude,
-      orderBy: [
-        { financialStatus: 'asc' }, 
-        { createdAt: 'desc' },     
-      ],
-    });
+    const clients = await this.clientRepo.findAll(this.clientInclude, [
+      { financialStatus: 'asc' },
+      { createdAt: 'desc' },
+    ]);
     return clients.map((client) => this._mapToClientResponseDTO(client));
   }
 
   async findById(id: string): Promise<ClientResponseDTO> {
-    const client = await this.prisma.client.findUnique({
-      where: { id },
-      include: this.clientInclude,
-    });
+    const client = await this.clientRepo.findById(id);
     if (!client) {
       throw new ClientNotFoundException();
     }
@@ -99,10 +84,7 @@ export class ClientService {
   }
 
   async findByEmail(email: string): Promise<ClientResponseDTO> {
-    const client = await this.prisma.client.findUnique({
-      where: { email },
-      include: this.clientInclude,
-    });
+    const client = await this.clientRepo.findByEmail(email);
     if (!client) {
       throw new ClientNotFoundException();
     }
@@ -117,54 +99,37 @@ export class ClientService {
     await this.findById(id);
 
     if (data.email) {
-      const ownerOfEmail = await this.prisma.client.findUnique({
-        where: { email: data.email },
-      });
+      const ownerOfEmail = await this.clientRepo.findByEmail(data.email);
       if (ownerOfEmail && ownerOfEmail.id !== id) {
         throw new ClientConflictException();
       }
     }
 
-    const updatedClient = await this.prisma.client.update({
-      where: { id },
-      data: data,
-      include: this.clientInclude,
-    });
-
+    const updatedClient = await this.clientRepo.update(id, data as any, this.clientInclude);
     return this._mapToClientResponseDTO(updatedClient);
   }
 
   async toggleStatus(id: string): Promise<ClientResponseDTO> {
-    const client = await this.prisma.client.findUnique({
-      where: { id },
-      include: this.clientInclude,
-    });
+    const client = await this.clientRepo.findById(id);
 
     if (!client) {
       throw new ClientNotFoundException();
     }
 
-    const updatedClient = await this.prisma.client.update({
-      where: { id },
-      data: {
-        isActive: !client.isActive,
-        canceledAt: !client.isActive ? new Date() : null,
-      },
-      include: this.clientInclude,
-    });
+    const updatedClient = await this.clientRepo.update(
+      id,
+      { isActive: !client.isActive, canceledAt: !client.isActive ? new Date() : null },
+      this.clientInclude,
+    );
 
     return this._mapToClientResponseDTO(updatedClient);
   }
 
   async toggleFinancialStatus(id: string): Promise<ClientResponseDTO> {
-    const client = await this.prisma.client.findUnique({ where: { id } });
+    const client = await this.clientRepo.findById(id);
     if (!client) throw new ClientNotFoundException();
     const newStatus = client.financialStatus === 'ADIMPLENTE' ? 'INADIMPLENTE' : 'ADIMPLENTE';
-    const updatedClient = await this.prisma.client.update({
-      where: { id },
-      data: { financialStatus: newStatus },
-      include: this.clientInclude,
-    });
+    const updatedClient = await this.clientRepo.update(id, { financialStatus: newStatus }, this.clientInclude);
     return this._mapToClientResponseDTO(updatedClient);
   }
 }
