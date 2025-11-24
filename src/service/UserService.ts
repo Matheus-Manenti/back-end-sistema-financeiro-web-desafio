@@ -6,6 +6,7 @@ import { PrismaService } from 'prisma/PrismaService';
 import { UpdateUserRequestDTO } from 'src/dtos/user/UpdateUserRequestDTO';
 import { UserNotFoundException } from 'src/exceptions/user-not-found.exception';
 import { UserConflictException } from 'src/exceptions/user-conflict.exception';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -39,7 +40,7 @@ export class UsersService {
         name: data.name,
         email: data.email,
         passwordHash,
-        role: data.role,
+        role: data.role.toUpperCase() as Role, 
       },
     });
 
@@ -97,6 +98,8 @@ export class UsersService {
 
   async update(id: string, data: UpdateUserRequestDTO): Promise<UserResponseDTO> {
 
+    console.log('Dados recebidos para atualização:', data);
+
     await this.findById(id); 
 
     if (data.email) {
@@ -112,9 +115,15 @@ export class UsersService {
     const updateData: any = { ...data };
 
     if (data.password) {
-      updateData.passwordHash = await hash(data.password, 10);
-      delete updateData.password;
+      updateData.passwordHash = await hash(data.password, 10); 
+      delete updateData.password; 
     }
+
+    if (data.role) {
+      updateData.role = data.role.toUpperCase() as Role;
+    }
+
+    delete updateData.password; 
 
     const updatedUser = await this.prisma.user.update({
       where: { id },

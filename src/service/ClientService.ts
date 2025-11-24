@@ -80,8 +80,8 @@ export class ClientService {
     const clients = await this.prisma.client.findMany({
       include: this.clientInclude,
       orderBy: [
-        { financialStatus: 'asc' }, // ADIMPLENTE antes de INADIMPLENTE
-        { createdAt: 'desc' },      // Mais recente primeiro
+        { financialStatus: 'asc' }, 
+        { createdAt: 'desc' },     
       ],
     });
     return clients.map((client) => this._mapToClientResponseDTO(client));

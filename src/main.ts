@@ -6,12 +6,11 @@ import { HttpExceptionFilter } from './exceptions/http-exception.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Configuração do Swagger
   const config = new DocumentBuilder()
     .setTitle('Sistema Financeiro API')
     .setDescription('Documentação da API do Sistema Financeiro')
     .setVersion('1.0')
-    .addBearerAuth() // Adiciona o campo de autorização Bearer
+    .addBearerAuth() 
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api-docs', app, document);
@@ -21,6 +20,16 @@ async function bootstrap() {
   app.enableCors();
 
   app.setGlobalPrefix('api');
+
+  try {
+    if (process.env.SEED_ON_STARTUP === 'true') {
+      console.log('SEED_ON_STARTUP=true — executando seed...');
+      const { runSeed } = require('../prisma/Seed');
+      await runSeed();
+    }
+  } catch (e) {
+    console.error('Erro ao executar seed durante inicialização:', e);
+  }
 
   await app.listen(process.env.PORT ?? 3000);
 }

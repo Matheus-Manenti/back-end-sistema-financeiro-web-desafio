@@ -4,8 +4,7 @@ import 'dotenv/config';
 
 const prisma = new PrismaClient();
 
-async function main() {
-
+export async function runSeed() {
   const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL;
   const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD;
 
@@ -25,7 +24,6 @@ async function main() {
   if (existingSuperAdmin) {
     console.log('O usuário SUPER_ADMIN já existe. Nenhuma ação foi tomada.');
   } else {
-    
     const superAdmin = await prisma.user.create({
       data: {
         name: 'Super Administrador',
@@ -41,11 +39,14 @@ async function main() {
   console.log('Seed finalizado.');
 }
 
-main()
-  .catch((e) => {
-    console.error('Ocorreu um erro durante o seed:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// Allow running this file directly with ts-node (e.g. prisma seed command)
+if (require.main === module) {
+  runSeed()
+    .catch((e) => {
+      console.error('Ocorreu um erro durante o seed:', e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

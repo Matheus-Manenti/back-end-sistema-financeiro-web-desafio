@@ -11,12 +11,11 @@ import { OrderModule } from './modules/order.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true, // Torna o ConfigModule disponível globalmente
+      isGlobal: true, 
     }),
-    PrismaModule,  // Fornece o PrismaService para toda a aplicação
-    UsersModule,   // Módulo que encapsula tudo de Usuários
-    ClientsModule, // Módulo que encapsula tudo de Clientes
-    AuthModule,
+    PrismaModule,  
+    UsersModule,  
+    ClientsModule, 
     OrderModule,
   ],
   controllers: [AppController],

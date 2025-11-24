@@ -48,7 +48,6 @@ export class OrderService {
       },
     });
 
-    // Atualiza o status financeiro do cliente
     await this._updateClientFinancialStatus(data.clientId);
 
     return this._mapToOrderResponseDTO(order);
@@ -94,7 +93,6 @@ export class OrderService {
       },
     });
 
-    // Atualiza o status financeiro do cliente após o pagamento
     await this._updateClientFinancialStatus(updatedOrder.clientId);
     return this._mapToOrderResponseDTO(updatedOrder);
   }
@@ -113,7 +111,6 @@ export class OrderService {
       },
     });
 
-    // Atualiza o status financeiro do cliente
     await this._updateClientFinancialStatus(updatedOrder.clientId);
     return this._mapToOrderResponseDTO(updatedOrder);
   }
@@ -132,7 +129,6 @@ export class OrderService {
       data: { isActive: !order.isActive },
     });
 
-    // Atualiza o status financeiro do cliente
     await this._updateClientFinancialStatus(updatedOrder.clientId);
     return this._mapToOrderResponseDTO(updatedOrder);
   }
@@ -140,34 +136,70 @@ export class OrderService {
   async findByClientId(clientId: string): Promise<OrderResponseDTO[]> {
     const orders = await this.prisma.order.findMany({
       where: { clientId },
-      orderBy: { startDate: 'asc' }, // Mantém a ordenação apenas pela data de início
+      orderBy: { startDate: 'asc' }, 
     });
 
     return orders.map((order) => {
       const orderDTO = this._mapToOrderResponseDTO(order);
-      // Formata as datas para o formato brasileiro
+  
       orderDTO.startDateFormatted = format(new Date(order.startDate), 'dd/MM/yyyy', { locale: ptBR });
       orderDTO.endDateFormatted = format(new Date(order.endDate), 'dd/MM/yyyy', { locale: ptBR });
       return orderDTO;
     });
   }
 
-  // Função auxiliar para atualizar o campo financialStatus do cliente no banco
+  async listAllWithDashboardData(): Promise<{ orders: OrderResponseDTO[]; dashboard: any }> {
+    const orders = await this.prisma.order.findMany();
+
+    const totalOrders = orders.length;
+    const totalPaid = orders.filter(order => order.isPaid).length;
+    const totalUnpaid = totalOrders - totalPaid;
+
+    const totalPaidValue = orders
+      .filter(order => order.isPaid)
+      .reduce((sum, order) => sum + order.value, 0);
+
+    const totalUnpaidValue = orders
+      .filter(order => !order.isPaid)
+      .reduce((sum, order) => sum + order.value, 0);
+
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+
+    const totalReceivedThisMonth = orders
+      .filter(order => order.isPaid && order.endDate && new Date(order.endDate).getMonth() === currentMonth && new Date(order.endDate).getFullYear() === currentYear)
+      .reduce((sum, order) => sum + order.value, 0);
+
+    const dashboard = {
+      totalOrders,
+      totalPaid,
+      totalUnpaid,
+      paidPercentage: totalOrders > 0 ? (totalPaid / totalOrders) * 100 : 0,
+      unpaidPercentage: totalOrders > 0 ? (totalUnpaid / totalOrders) * 100 : 0,
+      totalPaidValue,
+      totalUnpaidValue,
+      totalReceivedThisMonth,
+    };
+
+    const orderDTOs = orders.map(order => this._mapToOrderResponseDTO(order));
+
+    return { orders: orderDTOs, dashboard };
+  }
+
   private async _updateClientFinancialStatus(clientId: string) {
     const client = await this.prisma.client.findUnique({
       where: { id: clientId },
       include: { orders: true },
     });
     if (!client) return;
-    // Lógica igual ao ClientService
+    
     const now = new Date();
     const hasVencidaOrder = client.orders.some(order => {
       const now = new Date();
-      const isVencida = now > order.endDate && !order.isPaid; // Verifica se a ordem está vencida e não paga
+      const isVencida = now > order.endDate && !order.isPaid; 
       return isVencida;
     });
 
-    // Atualiza o estado financeiro do cliente
     const financialStatus = hasVencidaOrder ? 'INADIMPLENTE' : 'ADIMPLENTE';
     await this.prisma.client.update({
       where: { id: clientId },

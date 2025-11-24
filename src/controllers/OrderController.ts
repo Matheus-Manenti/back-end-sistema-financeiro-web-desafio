@@ -77,6 +77,25 @@ export class OrderController {
   ): Promise<OrderResponseDTO> {
     return this.orderService.toggleActivity(orderId);
   }
+
+  @Get('/total-paid')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.USER)
+  async getTotalPaid(): Promise<{ total: number }> {
+    const { dashboard } = await this.orderService.listAllWithDashboardData();
+    return { total: dashboard.totalPaidValue };
+  }
+
+  @Get('/total-unpaid')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.USER)
+  async getTotalUnpaid(): Promise<{ total: number }> {
+    const { dashboard } = await this.orderService.listAllWithDashboardData();
+    return { total: dashboard.totalUnpaidValue };
+  }
+
+  @Get('/received-this-month')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.USER)
+  async getReceivedThisMonth(): Promise<{ total: number }> {
+    const { dashboard } = await this.orderService.listAllWithDashboardData();
+    return { total: dashboard.totalReceivedThisMonth };
+  }
 }
-
-
